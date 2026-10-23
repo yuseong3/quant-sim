@@ -1,0 +1,253 @@
+{
+  "options": {
+    "params": {
+      "S": 100.0,
+      "K": 105.0,
+      "T": 1.0,
+      "r": 0.03,
+      "sigma": 0.2
+    },
+    "black_scholes": 7.1280646692617395,
+    "mc_1m": {
+      "price": 7.12300891424202,
+      "se": 0.01252398107754636
+    },
+    "antithetic_1m": {
+      "price": 7.113845026119374,
+      "se": 0.010293826242614632
+    },
+    "variance_reduction_factor": 1.4802366030474645,
+    "log_log_slope": -0.47519645978617053
+  },
+  "market_making": {
+    "inventory": {
+      "mean_pnl": 65.03755818689605,
+      "std_pnl": 6.308557613354798,
+      "sharpe_like": 10.309418122649124,
+      "mean_abs_inventory": 2.3325,
+      "std_inventory": 2.94314947197848,
+      "avg_spread": 1.4917704227514235
+    },
+    "symmetric": {
+      "mean_pnl": 67.81407509112276,
+      "std_pnl": 13.020728644627683,
+      "sharpe_like": 5.208162841109715,
+      "mean_abs_inventory": 6.565,
+      "std_inventory": 8.272295898946064,
+      "avg_spread": 1.4917704227514235
+    },
+    "gamma_sensitivity": [
+      {
+        "gamma": 0.01,
+        "mean_pnl": 68.47565920472063,
+        "std_pnl": 9.016476392522707
+      },
+      {
+        "gamma": 0.05,
+        "mean_pnl": 66.94960858448094,
+        "std_pnl": 6.993377417007085
+      },
+      {
+        "gamma": 0.1,
+        "mean_pnl": 64.9321582292983,
+        "std_pnl": 6.354210456762334
+      },
+      {
+        "gamma": 0.5,
+        "mean_pnl": 48.59559596132554,
+        "std_pnl": 5.796116284406792
+      },
+      {
+        "gamma": 1.0,
+        "mean_pnl": 31.466140816167265,
+        "std_pnl": 4.790614731258001
+      }
+    ],
+    "params": {
+      "s0": 100.0,
+      "T": 1.0,
+      "sigma": 2.0,
+      "dt": 0.005,
+      "gamma": 0.1,
+      "k": 1.5,
+      "A": 140.0
+    }
+  },
+  "kelly": {
+    "p": 0.55,
+    "b": 1.0,
+    "kelly_fraction": 0.10000000000000009,
+    "n_bets": 1000,
+    "table": [
+      {
+        "multiple_of_kelly": 0.25,
+        "fraction": 0.025000000000000022,
+        "theory_growth": 0.002187923331773884,
+        "sim_growth": 0.002193344461364162,
+        "median_final_wealth": 8.916676894980391,
+        "prob_loss": 0.002,
+        "prob_drawdown_50": 0.0922
+      },
+      {
+        "multiple_of_kelly": 0.5,
+        "fraction": 0.050000000000000044,
+        "theory_growth": 0.0037526078187898673,
+        "sim_growth": 0.0037634568656974687,
+        "median_final_wealth": 42.632113989397254,
+        "prob_loss": 0.0072,
+        "prob_drawdown_50": 0.864
+      },
+      {
+        "multiple_of_kelly": 1.0,
+        "fraction": 0.10000000000000009,
+        "theory_growth": 0.005008366846356839,
+        "sim_growth": 0.005030119549744876,
+        "median_final_wealth": 149.6601184865441,
+        "prob_loss": 0.0606,
+        "prob_drawdown_50": 1.0
+      },
+      {
+        "multiple_of_kelly": 1.5,
+        "fraction": 0.15000000000000013,
+        "theory_growth": 0.0037355500323385804,
+        "sim_growth": 0.0037683172788496385,
+        "median_final_wealth": 41.911071669231184,
+        "prob_loss": 0.2144,
+        "prob_drawdown_50": 1.0
+      },
+      {
+        "multiple_of_kelly": 2.0,
+        "fraction": 0.20000000000000018,
+        "theory_growth": -0.00013774185471934763,
+        "sim_growth": -9.37894370004056e-05,
+        "median_final_wealth": 0.8713235907891165,
+        "prob_loss": 0.5178,
+        "prob_drawdown_50": 1.0
+      }
+    ],
+    "ruin_half": [
+      {
+        "multiple": 0.5,
+        "sim": 0.11925,
+        "theory": 0.125
+      },
+      {
+        "multiple": 1.0,
+        "sim": 0.48375,
+        "theory": 0.5
+      }
+    ],
+    "m_star_theory": 0.6688963210702344,
+    "estimation": {
+      "n_obs": 200,
+      "best_multiplier": 0.7,
+      "growth_full_kelly": 0.0028128229980992673,
+      "growth_half_kelly": 0.003271244526901699,
+      "growth_known_full": 0.005008366846356839
+    }
+  },
+  "adverse_selection": {
+    "pnl_per_market_mu_0_3": {
+      "market_maker": 0.17533114167376754,
+      "market_maker_se": 0.11892909339757397,
+      "informed": 32.65921086754823,
+      "uninformed": -32.834542009222
+    },
+    "first_spread_mu_0_3": 6.0,
+    "discovery": [
+      {
+        "mu": 0.05,
+        "sim_mean": 602.6346666666667,
+        "sim_se": 9.198332575715298,
+        "exact": 600.0,
+        "unfinished": 0.0016666666666666668
+      },
+      {
+        "mu": 0.1,
+        "sim_mean": 150.51533333333333,
+        "sim_se": 2.301575862293203,
+        "exact": 150.0,
+        "unfinished": 0.0
+      },
+      {
+        "mu": 0.15,
+        "sim_mean": 66.37466666666667,
+        "sim_se": 0.9926439946463401,
+        "exact": 66.66666666666667,
+        "unfinished": 0.0
+      },
+      {
+        "mu": 0.2,
+        "sim_mean": 40.138,
+        "sim_se": 0.5593636792698824,
+        "exact": 40.0,
+        "unfinished": 0.0
+      },
+      {
+        "mu": 0.3,
+        "sim_mean": 16.708666666666666,
+        "sim_se": 0.23038243636460526,
+        "exact": 16.666666666666668,
+        "unfinished": 0.0
+      },
+      {
+        "mu": 0.4,
+        "sim_mean": 9.916,
+        "sim_se": 0.13110063739627115,
+        "exact": 10.0,
+        "unfinished": 0.0
+      },
+      {
+        "mu": 0.5,
+        "sim_mean": 5.902,
+        "sim_se": 0.07704904474560244,
+        "exact": 6.0,
+        "unfinished": 0.0
+      }
+    ],
+    "naive_vs_bayesian": [
+      {
+        "mu": 0.05,
+        "naive_per_trade": 1.49345,
+        "theory": 1.5,
+        "bayesian_per_trade": -0.009524598887005107
+      },
+      {
+        "mu": 0.1,
+        "naive_per_trade": 0.9914499999999999,
+        "theory": 1.0,
+        "bayesian_per_trade": -0.009626908540172507
+      },
+      {
+        "mu": 0.15,
+        "naive_per_trade": 0.49715000000000004,
+        "theory": 0.5,
+        "bayesian_per_trade": -0.005213069778265006
+      },
+      {
+        "mu": 0.2,
+        "naive_per_trade": -0.0069,
+        "theory": 0.0,
+        "bayesian_per_trade": -0.0022533715022502055
+      },
+      {
+        "mu": 0.3,
+        "naive_per_trade": -1.0023,
+        "theory": -1.0,
+        "bayesian_per_trade": -0.0005501073522669964
+      },
+      {
+        "mu": 0.4,
+        "naive_per_trade": -1.99625,
+        "theory": -2.0,
+        "bayesian_per_trade": -0.00034319966542201055
+      },
+      {
+        "mu": 0.5,
+        "naive_per_trade": -2.994475,
+        "theory": -3.0,
+        "bayesian_per_trade": -0.0016084936651633657
+      }
+    ]
+  }
+}

@@ -1,0 +1,630 @@
+<title>quant-sim by Yuseong Cho</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Four verified simulations of market making, bet sizing and option pricing, playable in the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* Layout: a research ledger. A narrow reading column for the argument; each study breaks
+   wider into an instrument panel (controls left, live chart right). Bid blue and ask red
+   are the only accents, used the way a quote screen uses them. */
+:root {
+  --ground: #f4f6f9;
+  --panel: #ffffff;
+  --ink: #141821;
+  --muted: #586074;
+  --rule: #dce1e9;
+  --bid: #1c58d0;
+  --ask: #cf4128;
+  --wash: #e7edfb;
+  --paper: #ffffff;      /* figure mats: the Python figures are drawn on white in both themes */
+  --paper-ink: #586074;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0e1117; --panel: #151a23; --ink: #e6e9f0; --muted: #98a1b4; --rule: #2a313e;
+    --bid: #6d9bff; --ask: #ff7a5e; --wash: #1a2337; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0e1117; --panel: #151a23; --ink: #e6e9f0; --muted: #98a1b4; --rule: #2a313e;
+  --bid: #6d9bff; --ask: #ff7a5e; --wash: #1a2337; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 400 1.0625rem/1.62 var(--f-body); }
+.wrap { max-width: 1060px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 650; letter-spacing: -0.015em; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+a { color: var(--bid); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--bid); outline-offset: 2px; border-radius: 3px; }
+.mono, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font: 500 0.75rem/1.2 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.prose { max-width: 64ch; display: grid; gap: 0.9rem; }
+.prose p { color: var(--ink); }
+
+/* top bar */
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; align-items: baseline; justify-content: space-between; padding-block: 1.1rem; border-bottom: 1px solid var(--rule); }
+.bar .id { font: 600 1rem/1 var(--f-display); }
+.bar nav { display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; font: 400 0.85rem/1.4 var(--f-mono); }
+.bar nav a { color: var(--muted); text-decoration: none; }
+.bar nav a:hover { color: var(--ink); }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 2.5rem; align-items: center; padding-block: 3.2rem 2.6rem; }
+.hero h1 { font-size: clamp(2.1rem, 4.2vw, 3rem); line-height: 1.05; font-weight: 700; }
+.hero h1 span { color: var(--muted); font-weight: 500; }
+.hero .lede { font-size: 1.15rem; max-width: 40ch; margin-top: 1.1rem; }
+.hero .who { margin-top: 1.2rem; font: 400 0.85rem/1.6 var(--f-mono); color: var(--muted); }
+.screen { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 0.9rem 0.9rem 0.7rem; display: grid; gap: 0.5rem; min-width: 0; }
+.screen-head { display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; font: 400 0.78rem/1.3 var(--f-mono); color: var(--muted); }
+.tape { font: 500 0.82rem/1.3 var(--f-mono); font-variant-numeric: tabular-nums; min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tape .b { color: var(--bid); } .tape .a { color: var(--ask); }
+canvas { display: block; width: 100%; height: 260px; }
+.screen canvas { height: 230px; }
+
+/* ledger */
+section { padding-block: 2.6rem; border-top: 1px solid var(--rule); }
+.section-head { display: grid; gap: 0.55rem; margin-bottom: 1.3rem; }
+.section-head h2 { font-size: clamp(1.45rem, 3vw, 1.9rem); line-height: 1.15; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.95rem; }
+th, td { padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: baseline; }
+tr:last-child td { border-bottom: 0; }
+th { font: 500 0.72rem/1.2 var(--f-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td .where { display: block; font: 400 0.75rem/1.3 var(--f-mono); color: var(--muted); }
+
+/* studies */
+.study { display: grid; gap: 1.4rem; }
+.findings { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 0; list-style: none; }
+.findings li { font: 400 0.82rem/1.35 var(--f-mono); background: var(--wash); border-radius: 4px; padding: 0.35rem 0.6rem; }
+.lab { display: grid; grid-template-columns: minmax(0, 270px) minmax(0, 1fr); gap: 1.4rem; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 1.1rem; }
+.controls { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.ctl { display: grid; gap: 0.3rem; }
+.ctl label { display: flex; justify-content: space-between; gap: 0.5rem; font: 400 0.8rem/1.3 var(--f-mono); color: var(--muted); }
+.ctl label output { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--bid); margin: 0; }
+.check { display: flex; gap: 0.5rem; align-items: center; font: 400 0.8rem/1.3 var(--f-mono); color: var(--muted); }
+.check input { accent-color: var(--bid); margin: 0; }
+.btn { justify-self: start; font: 500 0.8rem/1 var(--f-mono); color: var(--ink); background: transparent; border: 1px solid var(--rule); border-radius: 4px; padding: 0.55rem 0.8rem; cursor: pointer; }
+.btn:hover { background: var(--wash); border-color: var(--bid); }
+.readout { display: grid; grid-template-columns: auto auto; gap: 0.35rem 0.8rem; margin: 0; padding-top: 0.9rem; border-top: 1px solid var(--rule); font: 400 0.8rem/1.35 var(--f-mono); }
+.readout dt { color: var(--muted); }
+.readout dd { margin: 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
+.charts { display: grid; gap: 0.9rem; min-width: 0; }
+.chart { display: grid; gap: 0.35rem; min-width: 0; }
+.keys { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font: 400 0.75rem/1.3 var(--f-mono); color: var(--muted); }
+.keys .k::before { content: ""; display: inline-block; width: 14px; height: 0; border-top: 2px solid currentColor; vertical-align: middle; margin-right: 0.4rem; }
+.keys .k.dash::before { border-top-style: dashed; }
+.keys .k.fill::before { height: 8px; border: 0; background: currentColor; opacity: 0.35; }
+.k.bid { color: var(--bid); } .k.ask { color: var(--ask); } .k.ink { color: var(--ink); } .k.mut { color: var(--muted); }
+.keys .axis { margin-left: auto; }
+.note { font-size: 0.95rem; color: var(--muted); max-width: 72ch; }
+
+/* reproducibility */
+pre { margin: 0; font: 400 0.85rem/1.6 var(--f-mono); background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 0.9rem 1rem; overflow-x: auto; }
+.gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.4rem; }
+.gallery figure { margin: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 0.5rem; display: grid; gap: 0.3rem; }
+.gallery img { width: 100%; height: auto; display: block; }
+.gallery figcaption { font: 400 0.75rem/1.4 var(--f-mono); color: var(--paper-ink); padding: 0 0.2rem 0.2rem; }
+.refs { margin: 1.2rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.35rem; font-size: 0.95rem; }
+footer { padding-block: 2rem 3rem; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 0.6rem 2rem; justify-content: space-between; font: 400 0.8rem/1.6 var(--f-mono); color: var(--muted); }
+footer .addr { user-select: all; color: var(--ink); }
+
+@media (max-width: 820px) {
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 1.8rem; padding-block: 2.2rem 2rem; }
+  .lab { grid-template-columns: minmax(0, 1fr); }
+  .gallery { grid-template-columns: minmax(0, 1fr); }
+  canvas { height: 220px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <span class="id">Yuseong Cho</span>
+    <nav aria-label="Sections">
+      <a href="#checks">Checks</a>
+      <a href="#information">Information</a>
+      <a href="#inventory">Inventory</a>
+      <a href="#sizing">Sizing</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#code">Code</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <p class="eyebrow">quant-sim · four studies</p>
+      <h1>How a market maker learns, quotes and sizes. <span>Simulated, then checked against theory.</span></h1>
+      <p class="lede">Each study below runs live in your browser. Move a slider and the model re-simulates thousands of markets, bets or option paths.</p>
+      <p class="who">Undergraduate, Akita University · Python, NumPy, SciPy · Korean, Japanese, English</p>
+    </div>
+    <div class="screen" aria-label="Live Glosten-Milgrom market">
+      <div class="screen-head"><span>Live market · 30% of traders are informed</span><span id="hero-true">true value hidden</span></div>
+      <canvas id="hero-cv" role="img" aria-label="Bid and ask quotes converging on the asset's true value as trades arrive"></canvas>
+      <div class="tape" id="hero-tape" aria-live="off">&nbsp;</div>
+      <div class="keys"><span class="k fill bid">bid–ask band</span><span class="k bid">market maker's estimate</span><span class="k dash ask">true value</span></div>
+    </div>
+  </div>
+</div>
+
+<section id="checks">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Theory vs simulation</p>
+      <h2>Every headline number is checked against a closed form</h2>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Check</th><th class="num">Theory</th><th class="num">Simulation</th></tr></thead>
+        <tbody>
+          <tr><td>Opening spread when 30% of traders are informed<span class="where">Glosten–Milgrom, μ·(V<sub>H</sub>−V<sub>L</sub>)</span></td><td class="num">{{gm_first_theory}}</td><td class="num">{{gm_first_sim}}</td></tr>
+          <tr><td>Trades until the price is within 5% of the truth<span class="where">Glosten–Milgrom, μ = 0.3, exact k/μ</span></td><td class="num">{{gm_disc_exact}}</td><td class="num">{{gm_disc_sim}}</td></tr>
+          <tr><td>Fixed-quote market maker, PnL per trade<span class="where">μ = 0.3, spread 4, s/2 − μΔ/2</span></td><td class="num">{{gm_naive_theory}}</td><td class="num">{{gm_naive_sim}}</td></tr>
+          <tr><td>Chance half Kelly ever halves wealth<span class="where">Kelly, 0.5<sup>(2/c−1)</sup> with c = ½</span></td><td class="num">{{k_ruin_theory}}</td><td class="num">{{k_ruin_sim}}</td></tr>
+          <tr><td>Best stake when the edge is estimated from 200 bets<span class="where">Kelly, bias–variance optimum</span></td><td class="num">{{k_mstar_theory}}</td><td class="num">{{k_mstar_sim}}</td></tr>
+          <tr><td>Monte Carlo error vs number of paths<span class="where">log–log slope, theory 1/√N</span></td><td class="num">−0.50</td><td class="num">{{mc_slope}}</td></tr>
+          <tr><td>European call, S = 100, K = 105, σ = 20%, 1 year<span class="where">Black–Scholes vs 10⁶ paths, 95% CI</span></td><td class="num">{{bs}}</td><td class="num">{{mc_price}} ± {{mc_ci}}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="information">
+  <div class="wrap study">
+    <div class="section-head">
+      <p class="eyebrow">Market making · information</p>
+      <h2>Why a market maker quotes a spread at all</h2>
+    </div>
+    <div class="prose">
+      <p>Some traders already know what the asset is worth. Glosten and Milgrom (1985) showed that a competitive market maker must quote the expected value <i>given</i> that the next trade is a buy (the ask) or a sell (the bid). The gap between the two is the price of trading against people who may know more.</p>
+      <p>I simulated the model and derived how fast prices learn. Each buy multiplies the odds on the high value by exactly (1+μ)/(1−μ), so the log-odds is a biased random walk and the expected number of trades to discover the truth is an exact k/μ.</p>
+    </div>
+    <ul class="findings">
+      <li>opening spread = μ·(V<sub>H</sub>−V<sub>L</sub>), exactly</li>
+      <li>halve informed flow → 4× slower discovery</li>
+      <li>fixed quotes lose money once μ &gt; s/Δ</li>
+      <li>informed gains = uninformed losses, path by path</li>
+    </ul>
+    <div class="lab">
+      <div class="controls">
+        <div class="ctl"><label for="gm-mu">Informed traders <output id="gm-mu-out">30%</output></label><input id="gm-mu" type="range" min="0.05" max="0.6" step="0.05" value="0.3"></div>
+        <div class="ctl"><label for="gm-s">Naive maker's fixed spread <output id="gm-s-out">4.0</output></label><input id="gm-s" type="range" min="1" max="10" step="0.5" value="4"></div>
+        <button class="btn" id="gm-new" type="button">New market</button>
+        <dl class="readout">
+          <dt>Opening spread</dt><dd id="gm-r-spread">—</dd>
+          <dt>Trades to discover (exact)</dt><dd id="gm-r-exact">—</dd>
+          <dt>Trades to discover (2,000 sims)</dt><dd id="gm-r-sim">—</dd>
+          <dt>Naive PnL per trade (theory)</dt><dd id="gm-r-nt">—</dd>
+          <dt>Naive PnL per trade (sim)</dt><dd id="gm-r-ns">—</dd>
+        </dl>
+      </div>
+      <div class="charts">
+        <div class="chart">
+          <div class="keys"><span class="k fill bid">bid–ask band</span><span class="k bid">E[value]</span><span class="k dash ask">true value</span><span class="axis">price vs trade number</span></div>
+          <canvas id="gm-cv" role="img" aria-label="Quotes of one simulated market converging to the true value"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="inventory">
+  <div class="wrap study">
+    <div class="section-head">
+      <p class="eyebrow">Market making · inventory</p>
+      <h2>Quoting against your own position</h2>
+    </div>
+    <div class="prose">
+      <p>The second reason for a spread is inventory risk. Avellaneda and Stoikov (2008) centre both quotes on a reservation price, S − q·γ·σ²·(T−t), so a market maker that is long shades its quotes down to sell more and buy less.</p>
+      <p>Both strategies below see the same prices and the same order flow (common random numbers), so the difference comes from the quoting rule alone. At γ = 0.1 the inventory-aware maker gives up {{as_drop}} of mean profit and halves the volatility of its PnL.</p>
+    </div>
+    <ul class="findings">
+      <li>mean PnL {{as_inv_mean}} vs {{as_sym_mean}}</li>
+      <li>std PnL {{as_inv_std}} vs {{as_sym_std}}</li>
+      <li>return per unit risk {{as_inv_ratio}} vs {{as_sym_ratio}}</li>
+    </ul>
+    <div class="lab">
+      <div class="controls">
+        <div class="ctl"><label for="as-g">Risk aversion γ <output id="as-g-out">0.10</output></label><input id="as-g" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+        <p class="note" style="font-size:0.8rem">Slider is log-scaled from 0.01 to 1. Each move simulates 600 trading days per strategy.</p>
+        <dl class="readout">
+          <dt></dt><dd style="color:var(--muted)">aware · symmetric</dd>
+          <dt>Mean PnL</dt><dd id="as-r-mean">—</dd>
+          <dt>Std PnL</dt><dd id="as-r-std">—</dd>
+          <dt>Mean / std</dt><dd id="as-r-ratio">—</dd>
+          <dt>Std of final inventory</dt><dd id="as-r-inv">—</dd>
+        </dl>
+      </div>
+      <div class="charts">
+        <div class="chart">
+          <div class="keys"><span class="k fill bid">inventory-aware</span><span class="k fill mut">symmetric</span><span class="axis">days vs final PnL</span></div>
+          <canvas id="as-cv" role="img" aria-label="Histograms of final PnL for the two strategies"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sizing">
+  <div class="wrap study">
+    <div class="section-head">
+      <p class="eyebrow">Sizing</p>
+      <h2>How much to bet when you have an edge</h2>
+    </div>
+    <div class="prose">
+      <p>For an even-money bet won with probability p, staking a fraction f of wealth grows log wealth at g(f) = p·ln(1+f) + (1−p)·ln(1−f). The Kelly fraction f* = 2p − 1 maximises it. Bet twice that and growth falls to about zero: the edge is still real, yet half of all players end up losing.</p>
+      <p>The practical question is what to do when p is only estimated. With p measured from 200 past bets, the best stake drops to about {{k_mstar_sim}} of the estimated Kelly. Near its peak g is quadratic, so the loss splits into a bias term and a variance term, and minimising gives m* = f*² / (f*² + Var(f̂)) = {{k_mstar_val}}.</p>
+    </div>
+    <ul class="findings">
+      <li>half Kelly keeps {{k_half_share}} of the growth</li>
+      <li>P(loss after 1,000 bets): {{k_loss_half}} at ½×, {{k_loss_full}} at 1×, {{k_loss_double}} at 2×</li>
+    </ul>
+    <div class="lab">
+      <div class="controls">
+        <div class="ctl"><label for="k-p">Win probability p <output id="k-p-out">0.55</output></label><input id="k-p" type="range" min="0.51" max="0.7" step="0.01" value="0.55"></div>
+        <div class="ctl"><label for="k-m">Stake, multiple of Kelly <output id="k-m-out">1.00×</output></label><input id="k-m" type="range" min="0.05" max="2.5" step="0.05" value="1"></div>
+        <dl class="readout">
+          <dt>Kelly fraction f*</dt><dd id="k-r-f">—</dd>
+          <dt>Your stake</dt><dd id="k-r-stake">—</dd>
+          <dt>Growth per 1,000 bets</dt><dd id="k-r-g">—</dd>
+          <dt>Median final wealth</dt><dd id="k-r-med">—</dd>
+          <dt>P(loss after 1,000 bets)</dt><dd id="k-r-loss">—</dd>
+        </dl>
+      </div>
+      <div class="charts">
+        <div class="chart">
+          <div class="keys"><span class="k ink">g(f), theory</span><span class="k dash ask">Kelly</span><span class="k bid">your stake</span><span class="axis">log growth per 1,000 bets vs stake</span></div>
+          <canvas id="k-cv1" role="img" aria-label="Growth rate against bet size with the chosen stake marked"></canvas>
+        </div>
+        <div class="chart">
+          <div class="keys"><span class="k fill bid">your stake, 10–90%</span><span class="k bid">median</span><span class="k dash mut">full Kelly median</span><span class="axis">wealth vs bet number</span></div>
+          <canvas id="k-cv2" role="img" aria-label="Median and 10 to 90 percent band of wealth over 1,000 bets"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap study">
+    <div class="section-head">
+      <p class="eyebrow">Pricing</p>
+      <h2>How fast a Monte Carlo price converges</h2>
+    </div>
+    <div class="prose">
+      <p>A European call priced by simulating the stock under geometric Brownian motion and checked against Black–Scholes. The standard error falls as 1/√N, so a tenfold gain in accuracy costs a hundred times more paths. Pairing every draw z with −z (antithetic variates) cuts the variance by about {{mc_vr}} for the same number of payoff evaluations. Expect a draw to miss Black–Scholes by more than 1.96 standard errors about one time in twenty; press “Draw new paths” to see the spread of outcomes.</p>
+    </div>
+    <div class="lab">
+      <div class="controls">
+        <div class="ctl"><label for="mc-sigma">Volatility σ <output id="mc-sigma-out">20%</output></label><input id="mc-sigma" type="range" min="0.05" max="0.6" step="0.01" value="0.2"></div>
+        <div class="ctl"><label for="mc-k">Strike K <output id="mc-k-out">105</output></label><input id="mc-k" type="range" min="70" max="130" step="1" value="105"></div>
+        <label class="check" for="mc-anti"><input id="mc-anti" type="checkbox"> Antithetic variates</label>
+        <button class="btn" id="mc-new" type="button">Draw new paths</button>
+        <dl class="readout">
+          <dt>Black–Scholes</dt><dd id="mc-r-bs">—</dd>
+          <dt>MC, 200,000 paths</dt><dd id="mc-r-mc">—</dd>
+          <dt>Standard error</dt><dd id="mc-r-se">—</dd>
+          <dt>Miss, in standard errors</dt><dd id="mc-r-z">—</dd>
+          <dt>Variance cut, antithetic</dt><dd id="mc-r-vr">—</dd>
+        </dl>
+      </div>
+      <div class="charts">
+        <div class="chart">
+          <div class="keys"><span class="k fill bid">95% interval</span><span class="k bid">running estimate</span><span class="k dash ask">Black–Scholes</span><span class="axis">price vs paths (log)</span></div>
+          <canvas id="mc-cv" role="img" aria-label="Running Monte Carlo estimate converging to the Black-Scholes price"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="code">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Reproduce it</p>
+      <h2>Python models, {{n_tests}} unit tests, and the browser versions checked against them</h2>
+    </div>
+    <div class="prose">
+      <p>The Python package produces every number in the table above from fixed seeds. The models on this page are re-implementations in JavaScript, cross-checked against the Python results by a script in the repository. <a id="repo-link" href="{{GITHUB_URL}}" hidden>Source code on GitHub</a></p>
+    </div>
+    <pre>python scripts/run_all.py              # all four experiments → docs/results.json, figures
+python -m unittest discover tests      # {{n_tests}} tests: textbook values, parity, closed forms
+node scripts/check_js_models.js        # browser models vs Python results</pre>
+    <div class="gallery">
+      <figure><img src="img/gm_quotes.png" alt="Glosten-Milgrom quotes converging and average spread over time" loading="lazy"><figcaption>Information: quotes learn the truth; the spread starts at μΔ and shrinks.</figcaption></figure>
+      <figure><img src="img/gm_discovery.png" alt="Discovery time against informed share, and naive versus Bayesian market maker PnL" loading="lazy"><figcaption>Information: exact discovery time; fixed quotes break even at μ = s/Δ.</figcaption></figure>
+      <figure><img src="img/market_making.png" alt="PnL histograms and one simulated day of Avellaneda-Stoikov quotes" loading="lazy"><figcaption>Inventory: PnL distributions and one simulated day.</figcaption></figure>
+      <figure><img src="img/gamma_tradeoff.png" alt="Mean PnL against PnL standard deviation for several risk aversion values" loading="lazy"><figcaption>Inventory: risk aversion trades mean profit for lower risk.</figcaption></figure>
+      <figure><img src="img/kelly_growth.png" alt="Kelly growth curve with simulated points and wealth bands" loading="lazy"><figcaption>Sizing: simulation on the growth curve; wealth bands.</figcaption></figure>
+      <figure><img src="img/kelly_estimation.png" alt="True growth against multiple of estimated Kelly" loading="lazy"><figcaption>Sizing: with an estimated edge the optimum moves to about 0.7×.</figcaption></figure>
+      <figure><img src="img/option_convergence.png" alt="Monte Carlo estimate and standard error against number of paths" loading="lazy"><figcaption>Pricing: convergence and the 1/√N law.</figcaption></figure>
+    </div>
+    <ol class="refs">
+      <li>L. R. Glosten and P. R. Milgrom, “Bid, ask and transaction prices in a specialist market with heterogeneously informed traders,” <i>Journal of Financial Economics</i> 14(1), 1985.</li>
+      <li>M. Avellaneda and S. Stoikov, “High-frequency trading in a limit order book,” <i>Quantitative Finance</i> 8(3), 2008.</li>
+      <li>E. O. Thorp, “The Kelly criterion in blackjack, sports betting and the stock market,” <i>Handbook of Asset and Liability Management</i>, Vol. 1, 2006.</li>
+    </ol>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer>
+    <span>Built by Yuseong Cho with the help of AI coding tools. Every number is produced by the code and covered by tests.</span>
+    <span>Contact: <span class="addr">yuseong3@icloud.com</span></span>
+  </footer>
+</div>
+
+<script>/*MODELS*/</script>
+<script>
+(function () {
+  'use strict';
+  const QS = window.QS;
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const MONO = '11px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
+  const minus = (s) => String(s).replace(/^-/, '−');
+  const fx = (v, d) => minus(v.toFixed(d));
+  const pct = (v, d) => (v * 100).toFixed(d === undefined ? 1 : d) + '%';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- tiny canvas plotter ----------
+  function niceTicks(lo, hi, n) {
+    const span = hi - lo; if (!(span > 0)) return [lo];
+    const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), e = raw / mag;
+    const step = (e >= 7.5 ? 10 : e >= 3.5 ? 5 : e >= 1.5 ? 2 : 1) * mag;
+    const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toPrecision(12));
+    return out;
+  }
+  function tickLabel(v) {
+    if (v === 0) return '0';
+    const a = Math.abs(v);
+    if (a >= 1e6) return minus(+(v / 1e6).toPrecision(3) + 'M');
+    if (a >= 1e4) return minus(+(v / 1e3).toPrecision(3) + 'k');
+    return minus(+v.toPrecision(4));
+  }
+  function plot(cv, spec) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    const C = { ink: css('--ink'), muted: css('--muted'), rule: css('--rule'), bid: css('--bid'), ask: css('--ask') };
+    const col = (c) => C[c] || c;
+    const m = { l: 46, r: 10, t: 8, b: 24 }, pw = w - m.l - m.r, ph = h - m.t - m.b;
+    const [x0, x1] = spec.x, [y0, y1] = spec.y;
+    const X = spec.xlog ? (v) => m.l + (Math.log10(v) - Math.log10(x0)) / (Math.log10(x1) - Math.log10(x0)) * pw
+                        : (v) => m.l + (v - x0) / (x1 - x0) * pw;
+    const Y = (v) => m.t + ph - (v - y0) / (y1 - y0) * ph;
+    ctx.font = MONO; ctx.lineWidth = 1;
+    (spec.yticks || niceTicks(y0, y1, 5)).forEach((v) => {
+      if (v < y0 - 1e-9 || v > y1 + 1e-9) return;
+      const y = Math.round(Y(v)) + 0.5;
+      ctx.strokeStyle = C.rule; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(w - m.r, y); ctx.stroke();
+      ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(spec.yfmt ? spec.yfmt(v) : tickLabel(v), m.l - 6, y);
+    });
+    const xt = spec.xticks || niceTicks(x0, x1, Math.max(3, Math.floor(pw / 80)));
+    xt.forEach((v, i) => {
+      const x = X(v); ctx.fillStyle = C.muted; ctx.textBaseline = 'top';
+      ctx.textAlign = i === 0 && x - m.l < 12 ? 'left' : (i === xt.length - 1 && w - m.r - x < 12 ? 'right' : 'center');
+      ctx.fillText(spec.xfmt ? spec.xfmt(v) : tickLabel(v), x, m.t + ph + 7);
+      ctx.strokeStyle = C.muted; ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, m.t + ph); ctx.lineTo(Math.round(x) + 0.5, m.t + ph + 4); ctx.stroke();
+    });
+    ctx.strokeStyle = C.muted; ctx.beginPath(); ctx.moveTo(m.l, m.t + ph + 0.5); ctx.lineTo(w - m.r, m.t + ph + 0.5); ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.rect(m.l, m.t - 2, pw, ph + 4); ctx.clip();
+    for (const L of spec.layers) {
+      ctx.setLineDash(L.dash ? [5, 4] : []); ctx.globalAlpha = 1;
+      if (L.type === 'bars') {
+        ctx.fillStyle = col(L.color); ctx.globalAlpha = L.alpha || 0.5;
+        for (let i = 0; i < L.counts.length; i++) {
+          const xa = X(L.edges[i]), xb = X(L.edges[i + 1]);
+          ctx.fillRect(xa + 0.5, Y(L.counts[i]), Math.max(1, xb - xa - 1), Y(y0) - Y(L.counts[i]));
+        }
+      } else if (L.type === 'band') {
+        ctx.fillStyle = col(L.color); ctx.globalAlpha = L.alpha || 0.16; ctx.beginPath();
+        const n = L.xs.length;
+        for (let i = 0; i < n; i++) {
+          if (L.step && i > 0) ctx.lineTo(X(L.xs[i]), Y(L.hi[i - 1]));
+          ctx[i ? 'lineTo' : 'moveTo'](X(L.xs[i]), Y(L.hi[i]));
+        }
+        if (L.step) ctx.lineTo(X(L.xs[n - 1] + 1), Y(L.hi[n - 1]));
+        if (L.step) ctx.lineTo(X(L.xs[n - 1] + 1), Y(L.lo[n - 1]));
+        for (let i = n - 1; i >= 0; i--) {
+          ctx.lineTo(X(L.xs[i] + (L.step ? 1 : 0)), Y(L.lo[i]));
+          if (L.step) ctx.lineTo(X(L.xs[i]), Y(L.lo[i]));
+        }
+        ctx.closePath(); ctx.fill();
+      } else if (L.type === 'line') {
+        ctx.strokeStyle = col(L.color); ctx.lineWidth = L.width || 1.6; ctx.lineJoin = 'round'; ctx.beginPath();
+        for (let i = 0; i < L.xs.length; i++) {
+          if (!isFinite(L.ys[i])) continue;
+          if (L.step && i > 0) ctx.lineTo(X(L.xs[i]), Y(L.ys[i - 1]));
+          ctx[i ? 'lineTo' : 'moveTo'](X(L.xs[i]), Y(L.ys[i]));
+        }
+        if (L.step && L.xs.length) ctx.lineTo(X(L.xs[L.xs.length - 1] + 1), Y(L.ys[L.ys.length - 1]));
+        ctx.stroke(); ctx.lineWidth = 1;
+      } else if (L.type === 'hline' || L.type === 'vline') {
+        ctx.strokeStyle = col(L.color); ctx.lineWidth = L.width || 1.2; ctx.beginPath();
+        if (L.type === 'hline') { ctx.moveTo(m.l, Y(L.v)); ctx.lineTo(w - m.r, Y(L.v)); }
+        else { ctx.moveTo(X(L.v), m.t); ctx.lineTo(X(L.v), m.t + ph); }
+        ctx.stroke(); ctx.lineWidth = 1;
+      } else if (L.type === 'dot') {
+        ctx.fillStyle = col(L.color); ctx.beginPath(); ctx.arc(X(L.x), Y(L.y), L.r || 4.5, 0, 2 * Math.PI); ctx.fill();
+      }
+    }
+    ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+
+  // scheduling: one redraw per frame per lab; redraw all on resize or theme change
+  const drawers = [];
+  function lab(compute, draw) {
+    let state = null, pending = false;
+    const run = () => { pending = false; state = compute(); draw(state); };
+    const go = () => { if (!pending) { pending = true; requestAnimationFrame(run); } };
+    drawers.push(() => state && draw(state));
+    return go;
+  }
+  const redrawAll = () => drawers.forEach((d) => d());
+  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(redrawAll, 120); });
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll); } catch (e) { /* older browsers */ }
+  new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawAll);
+
+  // ---------- hero: a live Glosten-Milgrom market ----------
+  (function hero() {
+    const cv = $('hero-cv'), tape = $('hero-tape'), tv = $('hero-true'), N = 48;
+    let seed = 7, path = [], high = true, shown = 0, timer = null, visible = true;
+    function fresh() {
+      seed += 1; high = QS.rng(seed * 31).u() < 0.5;
+      path = QS.gmPath(0.3, N, seed, high); shown = reduceMotion ? N : 1;
+      tv.textContent = 'true value hidden';
+    }
+    function draw() {
+      const p = path.slice(0, shown), xs = p.map((d) => d.t);
+      const layers = [
+        { type: 'band', xs, lo: p.map((d) => d.bid), hi: p.map((d) => d.ask), color: 'bid', alpha: 0.18, step: true },
+        { type: 'line', xs, ys: p.map((d) => d.ev), color: 'bid', step: true, width: 1.8 },
+      ];
+      if (shown >= N) layers.push({ type: 'hline', v: high ? 110 : 90, color: 'ask', dash: true });
+      plot(cv, { x: [0, N], y: [88, 112], yticks: [90, 95, 100, 105, 110], layers });
+      const d = p[p.length - 1];
+      if (d) {
+        tape.innerHTML = `trade ${String(d.t + 1).padStart(2, '0')} · <span class="${d.buy ? 'a' : 'b'}">${d.buy ? 'buy at ask ' + d.ask.toFixed(2) : 'sell at bid ' + d.bid.toFixed(2)}</span> · quotes ${d.bid.toFixed(2)} / ${d.ask.toFixed(2)}`;
+      }
+      if (shown >= N) tv.textContent = 'true value ' + (high ? '110' : '90');
+    }
+    function tick() {
+      if (!visible || document.hidden) { timer = setTimeout(tick, 400); return; }
+      if (shown < N) { shown++; draw(); timer = setTimeout(tick, 130); }
+      else { timer = setTimeout(() => { fresh(); draw(); tick(); }, 2600); }
+    }
+    fresh(); draw(); drawers.push(draw);
+    if (!reduceMotion) {
+      try { new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(cv); } catch (e) { /* keep running */ }
+      timer = setTimeout(tick, 600);
+    }
+  })();
+
+  // ---------- information lab ----------
+  (function () {
+    const mu = $('gm-mu'), s = $('gm-s'); let seed = 101;
+    const go = lab(() => {
+      const m = +mu.value, sp = +s.value, high = QS.rng(seed * 17).u() < 0.5;
+      $('gm-mu-out').textContent = pct(m, 0); $('gm-s-out').textContent = sp.toFixed(1);
+      return { m, sp, high, path: QS.gmPath(m, 60, seed, high),
+        exact: QS.gmExpectedDiscovery(m), sim: QS.gmDiscoverySim(m, 2000, seed + 5, 50000),
+        nt: sp / 2 - m * 10, ns: QS.gmNaive(m, sp, 400, 200, seed + 9) };
+    }, (r) => {
+      const xs = r.path.map((d) => d.t);
+      plot($('gm-cv'), { x: [0, 60], y: [88, 112], yticks: [90, 95, 100, 105, 110], layers: [
+        { type: 'band', xs, lo: r.path.map((d) => d.bid), hi: r.path.map((d) => d.ask), color: 'bid', alpha: 0.18, step: true },
+        { type: 'line', xs, ys: r.path.map((d) => d.ev), color: 'bid', step: true, width: 1.8 },
+        { type: 'hline', v: r.high ? 110 : 90, color: 'ask', dash: true } ] });
+      $('gm-r-spread').textContent = fx(r.m * 20, 2);
+      $('gm-r-exact').textContent = fx(r.exact, 1);
+      $('gm-r-sim').textContent = fx(r.sim, 1);
+      $('gm-r-nt').textContent = fx(r.nt, 2);
+      $('gm-r-ns').textContent = fx(r.ns, 2);
+    });
+    mu.addEventListener('input', go); s.addEventListener('input', go);
+    $('gm-new').addEventListener('click', () => { seed += 1; go(); });
+    go();
+  })();
+
+  // ---------- inventory lab ----------
+  (function () {
+    const g = $('as-g'), gam = () => Math.pow(10, -2 + 2 * (+g.value));
+    function stats(a) { let s = 0, ss = 0; for (const x of a) { s += x; ss += x * x; } const m = s / a.length; return { m, sd: Math.sqrt((ss - a.length * m * m) / (a.length - 1)) }; }
+    const go = lab(() => {
+      const gm = gam(); $('as-g-out').textContent = gm < 0.1 ? gm.toFixed(3) : gm.toFixed(2);
+      const a = QS.marketMaking(gm, true, 600, 42), b = QS.marketMaking(gm, false, 600, 42);
+      return { a, b, sa: stats(a.pnl), sb: stats(b.pnl), ia: stats(a.inv), ib: stats(b.inv) };
+    }, (r) => {
+      let lo = Infinity, hi = -Infinity;
+      for (const x of r.a.pnl) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+      for (const x of r.b.pnl) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+      const nb = 40, edges = []; for (let i = 0; i <= nb; i++) edges.push(lo + (hi - lo) * i / nb);
+      const hist = (arr) => { const c = new Array(nb).fill(0); for (const x of arr) c[Math.min(nb - 1, Math.floor((x - lo) / (hi - lo) * nb))]++; return c; };
+      const ca = hist(r.a.pnl), cb = hist(r.b.pnl), top = Math.max(...ca, ...cb);
+      plot($('as-cv'), { x: [lo, hi], y: [0, top * 1.08], layers: [
+        { type: 'bars', edges, counts: cb, color: 'muted', alpha: 0.4 },
+        { type: 'bars', edges, counts: ca, color: 'bid', alpha: 0.55 } ] });
+      $('as-r-mean').textContent = `${fx(r.sa.m, 1)} · ${fx(r.sb.m, 1)}`;
+      $('as-r-std').textContent = `${fx(r.sa.sd, 1)} · ${fx(r.sb.sd, 1)}`;
+      $('as-r-ratio').textContent = `${fx(r.sa.m / r.sa.sd, 1)} · ${fx(r.sb.m / r.sb.sd, 1)}`;
+      $('as-r-inv').textContent = `${fx(r.ia.sd, 1)} · ${fx(r.ib.sd, 1)}`;
+    });
+    g.addEventListener('input', go); go();
+  })();
+
+  // ---------- sizing lab ----------
+  (function () {
+    const p = $('k-p'), mm = $('k-m');
+    const wealthLabel = (v) => { const e = v / Math.LN10; return Math.abs(e) <= 3.01 ? tickLabel(+Math.pow(10, e).toPrecision(3)) + '×' : '1e' + Math.round(e) + '×'; };
+    const go = lab(() => {
+      const pv = +p.value, m = +mm.value, fs = QS.kellyFraction(pv), f = Math.min(m * fs, 0.99);
+      $('k-p-out').textContent = pv.toFixed(2); $('k-m-out').textContent = m.toFixed(2) + '×';
+      const mine = QS.kellyPaths(f, pv, 1000, 700, 21, 10), full = QS.kellyPaths(fs, pv, 1000, 700, 21, 10);
+      return { pv, m, fs, f, mine, full };
+    }, (r) => {
+      const xs = [], ys = []; let gmax = 0;
+      for (let i = 0; i <= 250; i++) { const mlt = i / 100, f = Math.min(mlt * r.fs, 0.999); const gv = QS.growthRate(f, r.pv) * 1000; xs.push(mlt); ys.push(gv); gmax = Math.max(gmax, gv); }
+      plot($('k-cv1'), { x: [0, 2.5], y: [-1.1 * gmax, 1.15 * gmax], xticks: [0, 0.5, 1, 1.5, 2, 2.5], xfmt: (v) => v + '×', layers: [
+        { type: 'hline', v: 0, color: 'muted', width: 1 },
+        { type: 'vline', v: 1, color: 'ask', dash: true },
+        { type: 'line', xs, ys, color: 'ink', width: 1.6 },
+        { type: 'dot', x: r.m, y: QS.growthRate(r.f, r.pv) * 1000, color: 'bid' } ] });
+      const b = r.mine.bands, fb = r.full.bands, bx = b.map((d) => d.bet);
+      let lo = Math.min(0, ...b.map((d) => d.p10)), hi = Math.max(0.5, ...b.map((d) => d.p90), ...fb.map((d) => d.p50));
+      const span = (hi - lo) / Math.LN10, step = span > 12 ? Math.ceil(span / 6) : span > 4 ? 1 : 0.5;
+      const yt = []; for (let e = Math.floor(lo / Math.LN10 / step) * step; e <= hi / Math.LN10 + 1e-9; e += step) yt.push(e * Math.LN10);
+      plot($('k-cv2'), { x: [0, 1000], y: [lo, hi], yticks: yt, yfmt: wealthLabel, layers: [
+        { type: 'hline', v: 0, color: 'muted', width: 1 },
+        { type: 'band', xs: bx, lo: b.map((d) => d.p10), hi: b.map((d) => d.p90), color: 'bid', alpha: 0.16 },
+        { type: 'line', xs: bx, ys: fb.map((d) => d.p50), color: 'muted', dash: true, width: 1.3 },
+        { type: 'line', xs: bx, ys: b.map((d) => d.p50), color: 'bid', width: 1.8 } ] });
+      $('k-r-f').textContent = pct(r.fs, 0) + ' of wealth';
+      $('k-r-stake').textContent = pct(r.f, 1) + ' of wealth';
+      $('k-r-g').textContent = fx(QS.growthRate(r.f, r.pv) * 1000, 2);
+      $('k-r-med').textContent = wealthLabel(r.mine.medianFinal).replace(/^1e(\d+)×$/, '10^$1×');
+      $('k-r-loss').textContent = pct(r.mine.probLoss, 1);
+    });
+    p.addEventListener('input', go); mm.addEventListener('input', go); go();
+  })();
+
+  // ---------- pricing lab ----------
+  (function () {
+    const sg = $('mc-sigma'), kk = $('mc-k'), an = $('mc-anti'); let seed = 3;
+    const go = lab(() => {
+      const s = +sg.value, K = +kk.value;
+      $('mc-sigma-out').textContent = pct(s, 0); $('mc-k-out').textContent = K;
+      return { bs: QS.blackScholes(100, K, 1, 0.03, s), run: QS.monteCarlo(100, K, 1, 0.03, s, 200000, seed), anti: an.checked };
+    }, (r) => {
+      const pts = r.anti ? r.run.anti : r.run.plain, lp = pts[pts.length - 1];
+      const lo = Math.max(0, Math.min(...pts.map((d) => d.mean - 1.96 * d.se), r.bs) - 0.02 * r.bs);
+      const hi = Math.max(...pts.map((d) => d.mean + 1.96 * d.se), r.bs) + 0.02 * r.bs + 1e-6;
+      plot($('mc-cv'), { x: [100, 200000], xlog: true, y: [lo, hi], xticks: [100, 1000, 10000, 100000], xfmt: (v) => tickLabel(v), layers: [
+        { type: 'band', xs: pts.map((d) => d.n), lo: pts.map((d) => d.mean - 1.96 * d.se), hi: pts.map((d) => d.mean + 1.96 * d.se), color: 'bid', alpha: 0.16 },
+        { type: 'hline', v: r.bs, color: 'ask', dash: true },
+        { type: 'line', xs: pts.map((d) => d.n), ys: pts.map((d) => d.mean), color: 'bid', width: 1.8 } ] });
+      const pl = r.run.plain[r.run.plain.length - 1], at = r.run.anti[r.run.anti.length - 1];
+      $('mc-r-bs').textContent = r.bs.toFixed(4);
+      $('mc-r-mc').textContent = `${lp.mean.toFixed(4)} ± ${(1.96 * lp.se).toFixed(4)}`;
+      $('mc-r-se').textContent = lp.se.toFixed(4);
+      $('mc-r-z').textContent = fx((lp.mean - r.bs) / lp.se, 1);
+      $('mc-r-vr').textContent = (pl.se * pl.se / (at.se * at.se)).toFixed(2) + '×';
+    });
+    sg.addEventListener('input', go); kk.addEventListener('input', go); an.addEventListener('change', go);
+    $('mc-new').addEventListener('click', () => { seed += 1; go(); });
+    go();
+  })();
+
+  // show the repository link only once a real URL has been filled in
+  const repo = $('repo-link'); if (repo && !/\{\{/.test(repo.getAttribute('href'))) repo.hidden = false;
+})();
+</script>
